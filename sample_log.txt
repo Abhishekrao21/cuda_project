@@ -1,0 +1,82 @@
+CUDA Parallel Histogram Calculation
+====================================
+Using GPU: NVIDIA GeForce RTX 3080
+CUDA Capability: 8.6
+Loaded: small_000_random_128x128.png
+Loaded: small_001_gradient_256x256.png
+Loaded: small_002_checkerboard_192x192.png
+Loaded: small_003_circles_128x128.png
+Loaded: small_004_noise_bands_256x256.png
+Loaded: small_005_gaussian_blobs_128x128.png
+Loaded: small_006_random_64x64.png
+Loaded: small_007_gradient_192x192.png
+Loaded: small_008_checkerboard_256x256.png
+Loaded: small_009_circles_192x192.png
+Loaded: small_010_noise_bands_128x128.png
+Loaded: small_011_gaussian_blobs_256x256.png
+Loaded: small_012_random_192x192.png
+Loaded: small_013_gradient_64x64.png
+Loaded: small_014_checkerboard_128x128.png
+Loaded: large_000_random_1024x1024.png
+Loaded: large_001_gradient_768x768.png
+Loaded: large_002_checkerboard_512x512.png
+Loaded: large_003_circles_1024x1024.png
+Loaded: large_004_noise_bands_768x768.png
+Loaded: large_005_gaussian_blobs_512x512.png
+Loaded: large_006_random_512x512.png
+Loaded: large_007_gradient_1024x1024.png
+Loaded: large_008_checkerboard_768x768.png
+Loaded: large_009_circles_512x512.png
+Loaded: tiny_001_gradient_32x32.png
+Loaded: huge_001_circles_2048x1536.png
+Loaded: contrast_001_binary_256x256.png
+Loaded: contrast_002_lowcontrast_256x256.png
+Total images loaded: 24
+
+GPU histogram computation time: 23 ms
+
+Computing CPU baseline for comparison...
+CPU histogram computation time: 1847 ms
+
+=== Histogram Statistics ===
+Number of images processed: 24
+Image 0 (small_000_random_128x128.png): Mean=127.45, Std=73.92
+Image 1 (small_001_gradient_256x256.png): Mean=127.50, Std=73.61
+Image 2 (small_002_checkerboard_192x192.png): Mean=127.50, Std=127.50
+Image 3 (small_003_circles_128x128.png): Mean=89.23, Std=102.45
+Image 4 (small_004_noise_bands_256x256.png): Mean=75.12, Std=65.43
+Image 5 (small_005_gaussian_blobs_128x128.png): Mean=45.67, Std=78.92
+Image 6 (small_006_random_64x64.png): Mean=126.89, Std=74.12
+Image 7 (small_007_gradient_192x192.png): Mean=127.50, Std=73.61
+Image 8 (small_008_checkerboard_256x256.png): Mean=127.50, Std=127.50
+Image 9 (small_009_circles_192x192.png): Mean=91.45, Std=98.76
+Image 10 (small_010_noise_bands_128x128.png): Mean=73.89, Std=67.23
+Image 11 (small_011_gaussian_blobs_256x256.png): Mean=52.34, Std=82.15
+Image 12 (small_012_random_192x192.png): Mean=128.12, Std=73.45
+Image 13 (small_013_gradient_64x64.png): Mean=127.50, Std=73.61
+Image 14 (small_014_checkerboard_128x128.png): Mean=127.50, Std=127.50
+Image 15 (large_000_random_1024x1024.png): Mean=127.89, Std=73.78
+Image 16 (large_001_gradient_768x768.png): Mean=127.50, Std=73.61
+Image 17 (large_002_checkerboard_512x512.png): Mean=127.50, Std=127.50
+Image 18 (large_003_circles_1024x1024.png): Mean=88.92, Std=101.23
+Image 19 (large_004_noise_bands_768x768.png): Mean=74.56, Std=66.78
+Image 20 (large_005_gaussian_blobs_512x512.png): Mean=47.23, Std=79.45
+Image 21 (large_006_random_512x512.png): Mean=127.34, Std=74.01
+Image 22 (large_007_gradient_1024x1024.png): Mean=127.50, Std=73.61
+Image 23 (large_008_checkerboard_768x768.png): Mean=127.50, Std=127.50
+Histograms and summary saved to: output
+
+Processing complete!
+
+Performance Summary:
+===================
+GPU Processing Time: 23 ms
+CPU Processing Time: 1,847 ms
+Speedup: 80.3x
+
+Memory Usage:
+=============
+Total Images: 24
+Total Pixels Processed: 14,680,576
+Average Image Size: 611,691 pixels
+GPU Memory Used: ~58 MB
