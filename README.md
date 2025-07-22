@@ -64,6 +64,14 @@ make all
 ```bash
 python3 generate_sample_data.py --output data --small 15 --large 500
 ```
+# Command-Line Arguments for `generate_sample_data.py`
+
+| Argument       | Description                                                                 |
+|----------------|-----------------------------------------------------------------------------|
+| `--output data`| Specifies the output folder (`data/`) where the generated images will be saved. |
+| `--small 15`   | Generate 15 small images (e.g., 128×128 or 256×256, depending on the script design). |
+| `--large 500`  | Generate 500 large images (e.g., 1024×1024 or more).                        |
+
 
 #### 2. Build the Project
 ```bash
