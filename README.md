@@ -55,8 +55,8 @@ pip3 install -r requirements.txt
 
 ### 3. Copy the Project
 ```bash
-!git clone https://github.com/Abhishekrao21/cuda_project
-%cd cuda_project
+git clone https://github.com/Abhishekrao21/cuda_project
+cd cuda_project
 ```
 
 ## Usage
