@@ -1,6 +1,7 @@
 # CUDA Parallel Histogram Calculation
 
 A high-performance CUDA-accelerated program for computing pixel intensity histograms on large batches of images. This project demonstrates parallel processing, GPU memory management, and efficient batch computation techniques.
+An image histogram is essentially a frequency chart that shows how many pixels in a grayscale image assume each of the 256 possible intensity values, from black (0) to white (255). By examining the height of the bars you can immediately gauge the overall brightness balance of the image: a tall bar at zero indicates a preponderance of pure black pixels, while a prominent bar at 255 signifies many pure white pixels, and mid‑tone values manifest as peaks in the central region of the plot. The shape of this distribution also conveys the image’s contrast: if the histogram is tightly clustered around a narrow band of intensities, the image will appear flat and low‑contrast, whereas a wide—and perhaps bimodal—spread of values corresponds to deep shadows, bright highlights, or distinct regions of uniform tone.
 
 ## Features
 
