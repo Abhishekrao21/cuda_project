@@ -64,7 +64,7 @@ make all
 ```bash
 python3 generate_sample_data.py --output data --small 15 --large 500
 ```
-# Command-Line Arguments for `generate_sample_data.py`
+#### Command-Line Arguments for `generate_sample_data.py`
 
 | Argument       | Description                                                                 |
 |----------------|-----------------------------------------------------------------------------|
