@@ -24,6 +24,6 @@ clean:
 	rm -rf $(OUTPUT_DIR)/*
 
 run: $(TARGET)
-	./$(TARGET) $(DATA_DIR) $(OUTPUT_DIR)
+	./$(TARGET) $(DATA_DIR) $(OUTPUT_DIR) -s
 
 .PHONY: all clean run
