@@ -32,9 +32,11 @@ def main(out_dir, max_plots=6):
             shown+=1
     for i in range(shown,6): axes[i].axis("off")
     fig.tight_layout(); fig.savefig(p/"individual_histograms.png",dpi=300)
+    plt.show()
     plt.figure(figsize=(12,6))
     plt.bar(range(256),agg,width=1); plt.xlim(0,255)
     plt.tight_layout(); plt.savefig(p/"aggregate_histogram.png",dpi=300)
+    plt.show()
 
 if __name__=="__main__":
     if len(sys.argv)!=2:
