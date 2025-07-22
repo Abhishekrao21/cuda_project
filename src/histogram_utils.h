@@ -22,7 +22,6 @@
 
 constexpr int HISTOGRAM_SIZE = 256;
 
-/* ---------- kernel & helpers ---------- */
 __global__
 void computeHistogramKernel(const unsigned char* d_img,
                             int width, int height,
