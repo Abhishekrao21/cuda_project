@@ -1,8 +1,5 @@
 #include "histogram_utils.h"
 
-/* ====================================================== */
-/*  KERNEL – one image per block, 512 threads per block    */
-/* ====================================================== */
 __global__
 void computeHistogramKernel(const unsigned char* d_img,
                             int W, int H,
@@ -22,7 +19,6 @@ void computeHistogramKernel(const unsigned char* d_img,
         atomicAdd(&d_hist[tid], local[tid]);
 }
 
-/* ---------------- CPU reference ---------------- */
 void computeHistogramCPU(const cv::Mat& img, unsigned int* hist)
 {
     std::fill(hist, hist + HISTOGRAM_SIZE, 0U);
@@ -31,7 +27,6 @@ void computeHistogramCPU(const cv::Mat& img, unsigned int* hist)
             ++hist[ img.at<uchar>(r,c) ];
 }
 
-/* ---------------- CSV writer ------------------- */
 void writeHistogramCSV(const std::string& file, const unsigned int* hist)
 {
     std::ofstream f(file);
@@ -40,7 +35,6 @@ void writeHistogramCSV(const std::string& file, const unsigned int* hist)
         f << i << ',' << hist[i] << '\n';
 }
 
-/* -------------- image file discovery ----------- */
 std::vector<std::string> getImagePaths(const std::string& folder)
 {
     std::vector<std::string> paths;
