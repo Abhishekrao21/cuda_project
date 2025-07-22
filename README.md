@@ -53,9 +53,10 @@ sudo apt install libopencv-dev build-essential python3-pip
 pip3 install -r requirements.txt
 ```
 
-### 3. Build the Project
+### 3. Copy the Project
 ```bash
-make all
+!git clone https://github.com/Abhishekrao21/cuda_project
+%cd cuda_project
 ```
 
 ## Usage
