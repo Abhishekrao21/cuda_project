@@ -10,21 +10,26 @@
 #include <opencv2/opencv.hpp>
 #include <cuda_runtime.h>
 
-#define CHECK_CUDA(call) { \
-    cudaError_t err = call; \
-    if (err != cudaSuccess) { \
-        std::cerr << "CUDA error in file " << __FILE__ << " at line " << __LINE__ << ": " \
-                  << cudaGetErrorString(err) << std::endl; \
-        exit(1); \
-    } \
-}
+#define CHECK_CUDA(call)                                                     \
+    do {                                                                     \
+        cudaError_t e = call;                                                \
+        if (e != cudaSuccess) {                                              \
+            std::cerr << "CUDA error: " << cudaGetErrorString(e)             \
+                      << " (" << __FILE__ << ':' << __LINE__ << ")\n";       \
+            std::exit(EXIT_FAILURE);                                         \
+        }                                                                    \
+    } while (0)
 
-__global__ void computeHistogramKernel(unsigned char* d_image, int width, int height, int* d_histogram);
+constexpr int HISTOGRAM_SIZE = 256;
 
-void computeHistogramCPU(const unsigned char* image, int width, int height, int* histogram);
+/* ---------- kernel & helpers ---------- */
+__global__
+void computeHistogramKernel(const unsigned char* d_img,
+                            int width, int height,
+                            unsigned int* d_hist);
 
-std::vector<std::string> getImagePaths(const std::string& folderPath);
-
-void writeHistogramToCSV(const std::string& filename, const int* histogram);
+void  computeHistogramCPU(const cv::Mat& img, unsigned int* hist);
+void  writeHistogramCSV (const std::string& file, const unsigned int* hist);
+std::vector<std::string> getImagePaths(const std::string& folder);
 
 #endif // HISTOGRAM_UTILS_H
