@@ -84,9 +84,3 @@ This project implements a **high-performance**, **batched histogram computation*
 
 ---
 
-## 🚀 How to Run
-
-### 1. Compile
-```bash
-make
-
