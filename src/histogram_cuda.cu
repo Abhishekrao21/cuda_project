@@ -5,8 +5,9 @@
  * 2. One shared-memory histogram per block
  *    → only 256 global atomics per block.
  * 3. Pinned host buffer + single stream to overlap
- *    H↔D copies with kernel execution.
+ *    host↔device copies with kernel execution.
  * 4. All images are batched in one launch.
+ * 5. CSV output is optional: add -s / --save flag.
  *******************************************************/
 
 #include <opencv2/opencv.hpp>
@@ -17,10 +18,13 @@
 #include <string>
 #include <chrono>
 #include <fstream>
+#include <numeric>
 #include <filesystem>
 
 #define HISTOGRAM_SIZE     256
-#define THREADS_PER_BLOCK  512         // was 256
+#define THREADS_PER_BLOCK  512
+
+/* ----- CUDA error macro ------------------------------------------------ */
 #define CUDA_CHECK(call)                                                   \
     do {                                                                   \
         cudaError_t err = call;                                            \
@@ -31,9 +35,7 @@
         }                                                                  \
     } while (0)
 
-/* ------------------------------------------------------------------ */
-/*  Optimised batch kernel – shared-memory reduction                   */
-/* ------------------------------------------------------------------ */
+/* ----- CUDA kernel: shared-memory reduction ---------------------------- */
 __global__
 void batchHistogramKernelOpt(const unsigned char *images,
                              unsigned int       *histograms,
@@ -44,6 +46,7 @@ void batchHistogramKernelOpt(const unsigned char *images,
     if (imgIdx >= numImages) return;
 
     __shared__ unsigned int local[HISTOGRAM_SIZE];
+
     const int tid    = threadIdx.x;
     const int pixels = width * height;
     const int stride = gridDim.x * blockDim.x;
@@ -62,18 +65,22 @@ void batchHistogramKernelOpt(const unsigned char *images,
         atomicAdd(&histograms[imgIdx * HISTOGRAM_SIZE + tid], local[tid]);
 }
 
-/* ========================== HOST CLASS =========================== */
-
+/* =======================================================================
+                               Host class
+   =======================================================================*/
 class HistogramProcessor {
-    std::vector<cv::Mat> images_;
-    std::vector<std::string> names_;
-    std::vector<std::vector<unsigned int>> hist_;
+    std::vector<cv::Mat>                    images_;
+    std::vector<std::string>                names_;
+    std::vector<std::vector<unsigned int>>  hist_;
 
 public:
+    /* ---------- load grayscale images from a folder ---------- */
     bool load(const std::string &dir) {
         images_.clear(); names_.clear();
-        if (!std::filesystem::exists(dir)) return false;
-
+        if (!std::filesystem::exists(dir)) {
+            std::cerr << "Directory not found: " << dir << '\n';
+            return false;
+        }
         for (auto &e : std::filesystem::directory_iterator(dir)) {
             if (!e.is_regular_file()) continue;
             auto ext = e.path().extension().string();
@@ -90,37 +97,36 @@ public:
         return !images_.empty();
     }
 
-    /* ------------ GPU version (optimised) ------------ */
+    /* ---------- GPU histogram (optimised) ---------- */
     void runGPU() {
         if (images_.empty()) { std::cerr<<"No images!\n"; return; }
 
         const int W = images_[0].cols, H = images_[0].rows;
-        for (auto &im : images_)              // resize mismatched
-            if (im.cols!=W||im.rows!=H) cv::resize(im,im,{W,H});
+        for (auto &im : images_)
+            if (im.cols!=W || im.rows!=H) cv::resize(im, im, {W,H});
 
-        const int nImg = images_.size();
-        const int pix  = W*H;
-        const size_t imgBytes  = 1ULL*nImg*pix;
-        const size_t histBytes = 1ULL*nImg*HISTOGRAM_SIZE*sizeof(unsigned int);
+        const int  nImg      = images_.size();
+        const int  pix       = W * H;
+        const size_t imgB    = 1ULL * nImg * pix;
+        const size_t histB   = 1ULL * nImg * HISTOGRAM_SIZE * sizeof(unsigned int);
 
-        /* host-side pinned buffer */
         unsigned char *hImgPinned = nullptr;
-        CUDA_CHECK(cudaHostAlloc(&hImgPinned, imgBytes, cudaHostAllocDefault));
-
-        for (int i=0;i<nImg;++i)
+        CUDA_CHECK(cudaHostAlloc(&hImgPinned, imgB, cudaHostAllocDefault));
+        for (int i = 0; i < nImg; ++i)
             std::memcpy(hImgPinned + i*pix, images_[i].data, pix);
 
         unsigned char *dImg = nullptr;
         unsigned int  *dHist= nullptr;
-        CUDA_CHECK(cudaMalloc(&dImg,  imgBytes));
-        CUDA_CHECK(cudaMalloc(&dHist, histBytes));
-        CUDA_CHECK(cudaMemset(dHist, 0, histBytes));
+        CUDA_CHECK(cudaMalloc(&dImg,  imgB));
+        CUDA_CHECK(cudaMalloc(&dHist, histB));
+        CUDA_CHECK(cudaMemset(dHist, 0, histB));
 
-        cudaStream_t stream;  CUDA_CHECK(cudaStreamCreate(&stream));
+        cudaStream_t stream;
+        CUDA_CHECK(cudaStreamCreate(&stream));
 
         auto t0 = std::chrono::high_resolution_clock::now();
 
-        CUDA_CHECK(cudaMemcpyAsync(dImg, hImgPinned, imgBytes,
+        CUDA_CHECK(cudaMemcpyAsync(dImg, hImgPinned, imgB,
                                    cudaMemcpyHostToDevice, stream));
 
         const int blocks = (pix + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
@@ -128,20 +134,19 @@ public:
         batchHistogramKernelOpt<<<grid, THREADS_PER_BLOCK, 0, stream>>>(
             dImg, dHist, W, H, nImg);
 
-        std::vector<unsigned int> hHist(nImg*HISTOGRAM_SIZE);
-        CUDA_CHECK(cudaMemcpyAsync(hHist.data(), dHist, histBytes,
+        std::vector<unsigned int> hHist(nImg * HISTOGRAM_SIZE);
+        CUDA_CHECK(cudaMemcpyAsync(hHist.data(), dHist, histB,
                                    cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaStreamSynchronize(stream));
 
         auto t1 = std::chrono::high_resolution_clock::now();
         std::cout << "GPU histogram time: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count()
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
                   << " ms\n";
 
-        /* convert to vector-of-vector */
         hist_.assign(nImg, std::vector<unsigned int>(HISTOGRAM_SIZE));
-        for (int i=0;i<nImg;++i)
-            std::copy_n(hHist.data()+i*HISTOGRAM_SIZE, HISTOGRAM_SIZE, hist_[i].begin());
+        for (int i = 0; i < nImg; ++i)
+            std::copy_n(hHist.data() + i*HISTOGRAM_SIZE, HISTOGRAM_SIZE, hist_[i].begin());
 
         CUDA_CHECK(cudaFreeHost(hImgPinned));
         CUDA_CHECK(cudaFree(dImg));
@@ -149,40 +154,98 @@ public:
         CUDA_CHECK(cudaStreamDestroy(stream));
     }
 
-    /* ------------ CPU baseline (unchanged) ------------ */
+    /* ---------- CPU baseline (naïve) ---------- */
     void runCPU() {
-        auto t0=std::chrono::high_resolution_clock::now();
-        hist_.assign(images_.size(), std::vector<unsigned int>(HISTOGRAM_SIZE,0));
-        for (size_t i=0;i<images_.size();++i)
-            for (int r=0;r<images_[i].rows;++r)
-                for (int c=0;c<images_[i].cols;++c)
-                    ++hist_[i][ images_[i].at<uchar>(r,c) ];
-        auto t1=std::chrono::high_resolution_clock::now();
-        std::cout<<"CPU histogram time: "
-                 <<std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count()
-                 <<" ms\n";
+        auto t0 = std::chrono::high_resolution_clock::now();
+        hist_.assign(images_.size(), std::vector<unsigned int>(HISTOGRAM_SIZE, 0));
+        for (size_t i = 0; i < images_.size(); ++i)
+            for (int r = 0; r < images_[i].rows; ++r)
+                for (int c = 0; c < images_[i].cols; ++c)
+                    ++hist_[i][ images_[i].at<uchar>(r, c) ];
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::cout << "CPU histogram time: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+                  << " ms\n";
     }
 
-    /* additional utility functions (save, stats) are identical to
-       your previous version and can be kept as-is. */
+    /* ---------- optional CSV writer ---------- */
+    void saveHistograms(const std::string& outDir) {
+        if (hist_.empty()) { std::cerr<<"No histograms.\n"; return; }
+        std::filesystem::create_directories(outDir);
+
+        /* per-image CSVs */
+        for (size_t i = 0; i < hist_.size(); ++i) {
+            std::ofstream f(outDir + "/histogram_" + std::to_string(i) +
+                            "_" + names_[i] + ".csv");
+            f << "Intensity,Count\n";
+            for (int j = 0; j < HISTOGRAM_SIZE; ++j)
+                f << j << ',' << hist_[i][j] << '\n';
+        }
+
+        /* summary CSV */
+        std::ofstream s(outDir + "/histogram_summary.csv");
+        s << "Image,Mean,Std,Min,Max,Total_Pixels\n";
+
+        for (size_t i = 0; i < hist_.size(); ++i) {
+            const auto& h = hist_[i];
+            unsigned total = std::accumulate(h.begin(), h.end(), 0U);
+
+            double mean = 0.0;
+            for (int j = 0; j < HISTOGRAM_SIZE; ++j) mean += j * h[j];
+            mean /= total;
+
+            double var = 0.0;
+            for (int j = 0; j < HISTOGRAM_SIZE; ++j)
+                var += h[j] * (j - mean) * (j - mean);
+            var /= total;
+
+            unsigned minI = 255, maxI = 0;
+            for (int j = 0; j < HISTOGRAM_SIZE; ++j)
+                if (h[j]) { minI = std::min(minI, (unsigned)j);
+                            maxI = std::max(maxI, (unsigned)j); }
+
+            s << names_[i] << ',' << mean << ',' << std::sqrt(var) << ','
+              << minI << ',' << maxI << ',' << total << '\n';
+        }
+        std::cout << "CSV files saved to " << outDir << "/\n";
+    }
 };
 
-/* ----------------------------- main ----------------------------- */
-int main(int argc,char*argv[])
+/* =======================================================================
+                                   main
+   =======================================================================*/
+int main(int argc, char* argv[])
 {
-    std::string dataDir   = (argc>1)?argv[1]:"data";
-    std::string outputDir = (argc>2)?argv[2]:"output";
+    std::string dataDir   = "data";
+    std::string outDir    = "output";
+    bool        saveCSV   = false;
 
-    std::cout<<"CUDA Parallel Histogram Calculation\n";
+    /* ---------- simple CLI ---------- */
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if ((arg=="-d"||arg=="--data") && i+1<argc)   dataDir = argv[++i];
+        else if ((arg=="-o"||arg=="--output")&& i+1<argc) outDir = argv[++i];
+        else if (arg=="-s"||arg=="--save")            saveCSV = true;
+        else if (arg=="-h"||arg=="--help") {
+            std::cout <<
+              "Usage: ./histogram_cuda [options]\n"
+              "  -d, --data   <dir>   input directory (default: data)\n"
+              "  -o, --output <dir>   output directory (default: output)\n"
+              "  -s, --save          write CSV outputs\n"
+              "  -h, --help          show this help\n";
+            return 0;
+        }
+    }
+
+    std::cout << "CUDA Parallel Histogram Calculation\n";
 
     HistogramProcessor hp;
     if (!hp.load(dataDir)) return 1;
 
-    hp.runGPU();                       // optimised GPU pass
-    std::cout<<"\nCPU baseline for comparison:\n";
-    hp.runCPU();                       // reference
+    hp.runGPU();
+    std::cout << "\nCPU baseline for comparison:\n";
+    hp.runCPU();
 
-    /* hp.saveHistograms(outputDir);  // keep your existing saveStats/plot calls */
-
+    if (saveCSV) hp.saveHistograms(outDir);
     return 0;
 }
